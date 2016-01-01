@@ -1,4 +1,3 @@
-//#define DEBUG
 #ifndef DEBUG
 #define NDEBUG
 #endif
@@ -42,10 +41,6 @@ public:
     {
         return n;
     }
-
-    void dump() const;
-
-    void checkModulo(int base) const;
 };
 
 SquareMatrix::SquareMatrix(int n) : n(n)
@@ -141,26 +136,6 @@ static SquareMatrix operator-(const SquareMatrix &o)
         }
     }
     return result;
-}
-
-void SquareMatrix::dump() const
-{
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            cerr << (*this)(i, j) << ' ';
-        }
-        cerr << '\n';
-    }
-}
-
-void SquareMatrix::checkModulo(int base) const
-{
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            assert((*this)(i, j) >= 0);
-            assert((*this)(i, j) < base);
-        }
-    }
 }
 
 class IntMod
@@ -492,38 +467,8 @@ static void addRowMultiplied(SquareMatrix &leftPart, SquareMatrix &rightPart, in
     }
 }
 
-static SquareMatrix multiplyModulo(const SquareMatrix &lhs, const SquareMatrix &rhs, int base)
-{
-    const int width = lhs.width();
-    assert(width == rhs.width());
-    SquareMatrix result(width);
-    // przeplot pętli dla obliczenia cache-friendly
-    for (int i = 0; i < width; ++i) {
-        for (int k = 0; k < width; ++k) {
-            for (int j = 0; j < width; ++j) {
-                result(i, j) = (result(i, j) + static_cast<long>(lhs(i, k)) * rhs(k, j)) % base;
-            }
-        }
-    }
-    return result;
-}
-
-static bool isId(const SquareMatrix &matrix)
-{
-    const int n = matrix.width();
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            if (static_cast<int>(i == j) != matrix(i, j)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
 static SquareMatrix inverted(SquareMatrix matrix, const int base)
 {
-    const SquareMatrix oldMatrix = matrix;
     const int n = matrix.width();
     SquareMatrix result(n);
     for (int i = 0; i < n; ++i) {
@@ -557,14 +502,11 @@ static SquareMatrix inverted(SquareMatrix matrix, const int base)
             assert(result(i, j) < base);
         }
     }
-    assert(isId(matrix));
-    assert(isId(multiplyModulo(oldMatrix, result, base)));
-    assert(isId(multiplyModulo(result, oldMatrix, base)));
 #endif
     return result;
 }
 
-static const int bigPrime = 640007;
+static const int bigPrime = 512000009;
 
 static void removeCross(const SquareMatrix &A, const SquareMatrix &Ainv, int i, int j, int base, SquareMatrix &NA,
                         SquareMatrix &NAinv)
@@ -575,8 +517,6 @@ static void removeCross(const SquareMatrix &A, const SquareMatrix &Ainv, int i, 
     assert(j >= 0);
     assert(i < n);
     assert(j < n);
-    assert(isId(multiplyModulo(A, Ainv, base)));
-    assert(isId(multiplyModulo(Ainv, A, base)));
     SquareMatrix B(n - 1);
     SquareMatrix Ap(n - 1);
     int xDisp = 0;
@@ -595,9 +535,6 @@ static void removeCross(const SquareMatrix &A, const SquareMatrix &Ainv, int i, 
             Ap(x - xDisp, y - yDisp) = A(x, y);
         }
     }
-    assert(det(Ap, base));
-    assert(A(i, j) != 0);
-    assert(Ainv(i, j) != 0);
     long factor = 0;
     xDisp = 0;
     int yDisp = 0;
@@ -613,28 +550,15 @@ static void removeCross(const SquareMatrix &A, const SquareMatrix &Ainv, int i, 
         factor = (factor + static_cast<long>(Ainv(k + xDisp, j)) * Ainv(i, k + yDisp)) % base;
         assert(factor >= 0);
     }
-    const int bInv = inverted(Ainv(i, j), base);
-    factor = (factor * bInv) % base;
+    factor = (factor * inverted(Ainv(i, j), base)) % base;
     assert(factor >= 0);
-    for (int x = 0; x < n - 1; ++x) {
-        for (int y = 0; y < n - 1; ++y) {
-            B(x, y) = (B(x, y) + base -
-                       (static_cast<long>(Ainv(x + (x >= i), j)) * Ainv(i, y + (y >= j)) * bInv) % base) % base;
+    for (int i = 0; i < n - 1; ++i) {
+        for (int j = 0; j < n - 1; ++j) {
+            B(i, j) = (B(i, j) + base - factor) % base;
         }
     }
-    NA = Ap;
     NAinv = B;
-    if (!isId(multiplyModulo(NA, NAinv, base))) {
-        cerr << n << ' ' << i << ' ' << j << '\n';
-//        NA.dump();
-//        NA.checkModulo(base);
-//        NAinv.dump();
-//        NAinv.checkModulo(base);
-        multiplyModulo(NA, NAinv, base).dump();
-        NAinv = inverted(NA, base);
-    }
-    assert(isId(multiplyModulo(NA, NAinv, base)));
-    assert(isId(multiplyModulo(NAinv, NA, base)));
+    NA = Ap;
 }
 
 static vector<bool> removed;
@@ -676,7 +600,6 @@ static void SimplePerfectMatching(SquareMatrix A, int base)
                 }
             }
         }
-        assert(false);
         step:
         if (n == 2) {
             break;
@@ -697,25 +620,30 @@ static void SimplePerfectMatching(SquareMatrix A, int base)
 
 int main()
 {
-    ios_base::sync_with_stdio(false);
-    int n, m;
-    cin >> n >> m;
-    SquareMatrix input(n);
-    removed.resize(n, false);
     srand(time(0));
-    for (int i = 0; i < m; ++i) {
-        int a, b;
-        cin >> a >> b;
-        int x = (rand() % (bigPrime - 1)) + 1;
-        if (a < b) {
-            input(a, b) = x;
-            input(b, a) = bigPrime - x;
-        } else if (a > b) {
-            input(a, b) = bigPrime - x;
-            input(b, a) = x;
+    ios_base::sync_with_stdio(false);
+    int n = 10, m = n * 2 + 3;
+    vector<pair<int, int> > edges;
+    SquareMatrix input(0);
+    do {
+        input = SquareMatrix(n);
+        edges.clear();
+        for (int i = 0; i < m; ++i) {
+            int a = rand() % n, b = rand() % n;
+            edges.push_back(make_pair(a, b));
+            int x = (rand() % (bigPrime - 1)) + 1;
+            if (a < b) {
+                input(a, b) = x;
+                input(b, a) = bigPrime - x;
+            } else if (a > b) {
+                input(a, b) = bigPrime - x;
+                input(b, a) = x;
+            }
         }
+    } while (!det(input, bigPrime));
+    cout << n << ' ' << m << '\n';
+    for (int i = 0; i < m; ++i) {
+        cout << edges[i].first << ' ' << edges[i].second << '\n';
     }
-    assert(det(input, bigPrime));
-    SimplePerfectMatching(input, bigPrime);
     return 0;
 }
