@@ -1,3 +1,4 @@
+#define DEBUG
 #ifndef DEBUG
 #define NDEBUG
 #endif
@@ -204,7 +205,8 @@ static SquareMatrix BPWM(const SquareMatrix &A, const SquareMatrix &B)
     assert(n == B.width());
     for (int t = 0; t <= log2(n); ++t) {
         int r = 1 << t;
-        int x = static_cast<int>(3.77 * log(n) / log(2) + 0.5);
+        int x = static_cast<int>(/*3.77 **/ log(n) / log(2) + 0.5);
+        assert(x >= 0);
         while (x--) {
             vector<int> R(n);
             for (int i = 0; i < n; ++i) {
@@ -268,7 +270,7 @@ static SquareMatrix APSP(const SquareMatrix &A)
             }
         }
         //Ws = świadkowie dla Bs i A
-        SquareMatrix Ws = BPWM(Bs,A);
+        SquareMatrix Ws = BPWM(Bs, A);
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j) {
                 if (Ds(i, j) != 1) {
